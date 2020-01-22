@@ -1,11 +1,4 @@
 .gcloudignore
-.git
-.gitignore
-.idea
-
 *.pyc
 __pycache__/
 /setup.cfg
-
-staging/
-venv/

@@ -135,3 +135,14 @@ not be that flexible: some smaller providers have only a manual process in
 place where you have to send an e-mail to their sysadmin.
 
 To have a permanent fix, please proceed this README.
+
+
+Setting-Up a Transparent Forward Proxy
+--------------------------------------
+
+<!---
+TODO: 
+  - add custom domain (or fix docs for appspot.com)
+  - auto-select staging version
+  - write this section.
+-->

@@ -1,6 +1,12 @@
 import authlib.integrations.flask_client
 import flask
 
+try:
+    import googleclouddebugger
+    googleclouddebugger.enable()
+except ImportError:
+    pass
+
 
 app = flask.Flask(__name__)
 app.config.from_object('settings')
@@ -56,7 +62,14 @@ def show_google_profile():
 
 @app.route('/google/login')
 def login_google():
-    redirect_uri = flask.url_for('authorize_google', _external=True)
+    # Detect our transparent reverse proxy through a specific header named
+    # X-OAuth-Redirect. This is needed because authorize_access_token
+    # is a server-to-server call using redirect_uri, but bypassing the proxy.
+    redirect_proxy = flask.request.headers.get('X-OAuth-Redirect')
+    if redirect_proxy:
+        redirect_uri = redirect_proxy + flask.url_for('authorize_google')
+    else:
+        redirect_uri = flask.url_for('authorize_google', _external=True)
     return oauth.google.authorize_redirect(redirect_uri)
 
 
