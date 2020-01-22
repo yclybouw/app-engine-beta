@@ -5,24 +5,48 @@ import flask
 app = flask.Flask(__name__)
 app.config.from_object('settings')
 
+
+class TokenStore:
+    """
+    Manage token in the Flask Session. For security reasons, however, in
+    production store it in a real database.
+    """
+    def __init__(self, name):
+        self.name = name
+
+    def store(self, token):
+        flask.session[f'{self.name}_token'] = token
+
+    def fetch(self):
+        return flask.session.get(f'{self.name}_token')
+
+    def update(self, token, refresh_token=None, access_token=None):
+        flask.session[f'{self.name}_token'] = token
+
+
 oauth = authlib.integrations.flask_client.OAuth(app)
-oauth.register('google', fetch_token=lambda: flask.session.get('google_token'))
-
-
-# Security warning: in production use a server side cache, like REDIS, instead!
-def store_and_return_token(name, token):
-    flask.session[name] = token
-    return token
+google_token = TokenStore('google')
+oauth.register(
+    name='google',
+    access_token_url='https://oauth2.googleapis.com/token',
+    authorize_url='https://accounts.google.com/o/oauth2/auth',
+    api_base_url='https://www.googleapis.com/',
+    client_kwargs={'scope': 'profile'},
+    fetch_token=google_token.fetch,
+    update_token=google_token.update,
+)
 
 
 @app.route('/')
-def hello_world():
-    return 'Hello World!'
+def index():
+    index_html = (f'Hello, <a href="{flask.url_for("show_google_profile")}">'
+                  f'click here to see your Google Profile</a>.')
+    return index_html
 
 
 @app.route('/google')
-def hello_google():
-    if 'google_token' not in flask.session:
+def show_google_profile():
+    if not google_token.fetch():
         return flask.redirect(flask.url_for('login_google'))
     profile = oauth.google.get('oauth2/v1/userinfo?alt=json').json()
     profile_html = ('Hello {name}, this is your profile picture: <br />'
@@ -39,8 +63,8 @@ def login_google():
 @app.route('/google/authorize')
 def authorize_google():
     token = oauth.google.authorize_access_token()
-    flask.session['google_token'] = token
-    return flask.redirect(flask.url_for('hello_google'))
+    google_token.store(token)
+    return flask.redirect(flask.url_for('show_google_profile'))
 
 
 if __name__ == '__main__':
