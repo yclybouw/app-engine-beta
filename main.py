@@ -1,83 +1,50 @@
-import authlib.integrations.flask_client
 import flask
-
-try:
-    import googleclouddebugger
-    googleclouddebugger.enable()
-except ImportError:
-    pass
+import requests
 
 
 app = flask.Flask(__name__)
-app.config.from_object('settings')
 
 
-class TokenStore:
-    """
-    Manage token in the Flask Session. For security reasons, however, in
-    production store it in a real database.
-    """
-    def __init__(self, name):
-        self.name = name
-
-    def store(self, token):
-        flask.session[f'{self.name}_token'] = token
-
-    def fetch(self):
-        return flask.session.get(f'{self.name}_token')
-
-    def update(self, token, refresh_token=None, access_token=None):
-        flask.session[f'{self.name}_token'] = token
+@app.route('/_ah/<path:path>')
+def app_engine(path):
+    flask.abort(404, 'App Engine Methods not implemented')
 
 
-oauth = authlib.integrations.flask_client.OAuth(app)
-google_token = TokenStore('google')
-oauth.register(
-    name='google',
-    access_token_url='https://oauth2.googleapis.com/token',
-    authorize_url='https://accounts.google.com/o/oauth2/auth',
-    api_base_url='https://www.googleapis.com/',
-    client_kwargs={'scope': 'profile'},
-    fetch_token=google_token.fetch,
-    update_token=google_token.update,
-)
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
+def catch_all(path):
+    if flask.request.scheme == 'http':
+        flask.abort(400, 'Only HTTPS is supported.')
 
+    old_host = flask.request.host
+    new_host = '20200122t233313-dot-clybouw.appspot.com'
 
-@app.route('/')
-def index():
-    index_html = (f'Hello, <a href="{flask.url_for("show_google_profile")}">'
-                  f'click here to see your Google Profile</a>.')
-    return index_html
+    method = flask.request.method
+    url = flask.request.url.replace(old_host, new_host).replace('%2F', '/')
+    headers = {k: v.replace(old_host, new_host)
+               for k, v in flask.request.headers.items()
+               if not (k in ['Forwarded']
+                       or k.startswith('X-'))}
+    headers['X-OAuth-Redirect'] = f'https://{old_host}'
+    try:
+        data = flask.request.get_data(as_text=True)
+        data = data.replace(old_host, new_host)
+    except UnicodeDecodeError:
+        data = flask.request.get_data()
 
+    resp = requests.request(method=method, url=url, headers=headers, data=data,
+                            allow_redirects=False)
 
-@app.route('/google')
-def show_google_profile():
-    if not google_token.fetch():
-        return flask.redirect(flask.url_for('login_google'))
-    profile = oauth.google.get('oauth2/v1/userinfo?alt=json').json()
-    profile_html = ('Hello {name}, this is your profile picture: <br />'
-                    '<img src="{picture}">'.format(**profile))
-    return profile_html
+    new_headers = {k: v.replace(new_host, old_host)
+                   for k, v in resp.headers.items()
+                   if not (k in ['Content-Encoding', 'Transfer-Encoding']
+                           or k.startswith('X-'))}
+    try:
+        new_content = resp.content.decode().replace(new_host, old_host)
+    except UnicodeDecodeError:
+        new_content = resp.content
 
-
-@app.route('/google/login')
-def login_google():
-    # Detect our transparent reverse proxy through a specific header named
-    # X-OAuth-Redirect. This is needed because authorize_access_token
-    # is a server-to-server call using redirect_uri, but bypassing the proxy.
-    redirect_proxy = flask.request.headers.get('X-OAuth-Redirect')
-    if redirect_proxy:
-        redirect_uri = redirect_proxy + flask.url_for('authorize_google')
-    else:
-        redirect_uri = flask.url_for('authorize_google', _external=True)
-    return oauth.google.authorize_redirect(redirect_uri)
-
-
-@app.route('/google/authorize')
-def authorize_google():
-    token = oauth.google.authorize_access_token()
-    google_token.store(token)
-    return flask.redirect(flask.url_for('show_google_profile'))
+    return new_content, resp.status_code, new_headers
 
 
 if __name__ == '__main__':
