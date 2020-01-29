@@ -142,6 +142,7 @@ Setting-Up a Transparent Forward Proxy
 
 <!---
 TODO: 
+  - move original code to example_app
   - add custom domain (or fix docs for appspot.com)
   - auto-select staging version
   - write this section.
