@@ -1,38 +1,37 @@
-Flask - OAuth2 - Google App Engine
-==================================
+Staging Environment for App Engine using Python
+===============================================
 
 This is the repo used for [my blog](https://yannick.clybouw.eu/blog) and 
-features following:
+features a staging environment on Google App Engine:
 
-  - Flask application
-  - Google App Engine Standard Environment
-  - Use non-promoted service version as a staging environment
-  - App contains a OAuth2 flow with redirect_uri set at the identity provider
-  - A simple reverse proxy service for staging
+  - We use a non-promoted service version for staging, so you can easily move a
+    version from staging to production by simply changing the traffic 
+    allocation of the App Engine.
+  - The application requires to be reachable on a fixed HTTPS URL (e.g. needed 
+    for OAuth with fixed redirect_url + SSL).
+    
+We will implement this staging environment by using a transparent reverse proxy
+running as a separate service in the App Engine Standard Environment. We use
+the Python [Flask web framework](https://flask.palletsprojects.com) for this.
 
-This example app uses Google as identity provider. Once logged in, you can 
-view your Google profile (name and picture).
+There is an example app provided using Google as OAuth2 identity provider. Once
+logged in, you can view your Google profile (name and picture). The app is a 
+Flask application running on Google App Engine Standard Environment.
 
 
 Prerequisites
--------------
+=============
 
 Before starting:
 
   - Make sure you have [set up a Google Cloud project for App Engine](https://cloud.google.com/appengine/docs/standard/python3/quickstart#before-you-begin)
-  - Have a domain name (I use clybouw.eu)
   - Have this repository checked out locally
   - Have Python 3.7 or newer
   - Have docker and docker-compose
 
 
-Verify your domain at Google
-----------------------------
-
-Go to [Webmaster Central](https://www.google.com/webmasters/verification/) and
-add your domain as property. You can only proceed this tutorial once your
-domain has been verified.
-
+Setting-Up the Example App
+==========================
 
 Create OAuth2 Credentials
 -------------------------
@@ -44,23 +43,22 @@ We need a OAuth2 Client ID and Client Secret for our application.
 3.  Select Web application and fill in the form:
       - Name: e.g. flask-oauth
       - Authorized JavaScript origins: can be left empty
-      - Authorized redirect URIs:
+      - Authorized redirect URIs (replace "yourproject" with your actual
+        Google Cloud project name):
         - http://127.0.0.1:5000/google/authorize
-        - https://flask-oauth.yourdomain.com/google/authorize
-        - https://flask-oauth-staging.yourdomain.com/google/authorize
-        - https://staging.flask-oauth.yourdomain.com/google/authorize
+        - https://yourproject.appspot.com/google/authorize
+        - https://staging-dot-yourproject.appspot.com/google/authorize
 4.  The returned client ID should be stored in `settings.py`.
 5.  Create a new file `settings.py` and add the client secret:
     ```python
     GOOGLE_CLIENT_SECRET = 'your_client_secret'
     ```
 
-
 Run the Flask Application
 -------------------------
 
-1.  Within this directory, create a virtual environment with all required 
-    packages:
+1.  Within the `example_app` directory, create a virtual environment with all 
+    required packages:
     ```bash
     python3 -m venv venv
     source venv/bin/activate
@@ -84,7 +82,6 @@ Run the Flask Application
 4.  Try if the Google OAuth flow works by clicking on "click here to see your 
     Google Profile".
 
-
 Deploying to the Google App Engine
 ----------------------------------
 
@@ -97,36 +94,23 @@ Deploying to the Google App Engine
     ```bash
     gcloud app deploy --promote
     ```
-3.  Once deployed, you can reach it on https://yourproject.appspot.com. The
-    index page will be reachable (takes a few second due to the cold start).
-    The OAuth flow will fail, because this URL is not an accepted redirect_uri
-    configured for our Client ID.
+3.  Once deployed, you can reach it on https://yourproject.appspot.com. Try if 
+    the Google OAuth flow works by clicking on "click here to see your Google 
+    Profile".
+4.  Change something in `main.py`, example some strings within the HTML. Deploy 
+    a new version without promoting it. We will use this version for our 
+    staging environment:
+    ```bash
+    gcloud app deploy
+    ```
+5.  On the [versions page of the Google Cloud Console](https://console.cloud.google.com/appengine/versions)
+    you will see the new version with status `serving`, but with 0% traffic 
+    allocation.
     
-
-Adding Your Domain to Your App
-------------------------------
-
-In the Google Cloud Console, on the 
-[settings page of the App Engine](https://console.cloud.google.com/appengine/settings/domains)
-you can add the custom domain flask-oauth.yourdomain.com with automatic SSL.
-It can take a while to be completed. Once finished, you can browse to
-[https://flask-oauth.yourdomain.com] and click on the link. The OAuth flow
-should work now, as it worked locally.
-
-
-Deploy a Staging Environment
-----------------------------
-
-Execute:
-```bash
-gcloud app deploy
-```
-
-On the [versions page of the Google Cloud Console](https://console.cloud.google.com/appengine/versions)
-you will see the new version with status `serving`, but with 0% traffic 
-allocation. When clicking on the version, you are redirected to 
-`https://yourversion-dot-yourproject.appspot.com`. The index page will work,
-but the OAuth flow won't.
+When clicking on the version, you are redirected to 
+https://yourversion-dot-yourproject.appspot.com. The index page will work
+(takes a few second due to the cold start), but the OAuth flow will fail, 
+because this URL is not an accepted redirect_uri configured for our Client ID.
 
 To fix the OAuth flow, we could add the version URL each time to list of 
 "Authorized redirect URIs", but this is quite cumbersome. We use now Google as
@@ -134,16 +118,28 @@ an example, where this could be feasible, but other identity providers might
 not be that flexible: some smaller providers have only a manual process in 
 place where you have to send an e-mail to their sysadmin.
 
-To have a permanent fix, please proceed this README.
+In next section, we will describe how we will make this new version accessible
+at https://staging-dot-yourproject.appspot.com.
+    
 
+Setting-Up the Staging Environment
+==================================
 
-Setting-Up a Transparent Forward Proxy
---------------------------------------
+In the root app-engine-staging directory, execute:
+```bash
+gcloud app deploy --promote
+```
 
-<!---
-TODO: 
-  - move original code to example_app
-  - add custom domain (or fix docs for appspot.com)
-  - auto-select staging version
-  - write this section.
--->
+On the [services page of the Google Cloud Console](https://console.cloud.google.com/appengine/services)
+you will see a new service named `staging`. When clicking on it, you are 
+redirected to https://staging-dot-yourproject.appspot.com. The index page will 
+work (takes a few second due to the cold start), as well the OAuth flow! You
+should notice that the changes of step 4 of previous section are shown here,
+meaning you are using the not promoted version!
+
+To know how this work, you can have a peak at [main.py](main.py).
+
+Note that if you deploy a new version of your default service, staging will 
+only updated after a fresh start. You can either wait for 10 minutes since last
+request to staging (see [app.yaml](app.yaml)) or manually do a stop and start
+of the staging service on the [versions page of the Google Cloud Console](https://console.cloud.google.com/appengine/versions).
