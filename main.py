@@ -6,8 +6,11 @@ import requests
 import googleapiclient.discovery
 
 
-# Loaded at startup. Restart the service to reload
-def get_new_host():
+def get_latest_version_host():
+    """
+    Return the hostname of the latest version of the default service.
+    Example: 20200129t130254-dot-myproject.appspot.com
+    """
     apps_id = os.environ['GOOGLE_CLOUD_PROJECT']
     service = googleapiclient.discovery.build('appengine', 'v1')
     versions_api = service.apps().services().versions()
@@ -19,7 +22,7 @@ def get_new_host():
 
 
 app = flask.Flask(__name__)
-new_host = get_new_host()
+new_host = get_latest_version_host()
 
 
 @app.route('/_ah/<path:path>')
@@ -30,6 +33,18 @@ def app_engine(path):
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def catch_all(path):
+    """
+    Repeats the request to the latest version of default service by
+    replacing all occurrences of the hostname to the new_host defined
+    above. The replacement happens for:
+      - URL and URL query string
+      - Headers, including cookie headers
+      - The body, if we can decode it.=
+    Additionally:
+      - All headers starting with 'X-' are removed (to not mess-up with
+        Google's reverse proxies)
+      - The X-OAuth-Redirect header is added, containing the old hostname
+    """
     if flask.request.scheme == 'http':
         flask.abort(400, 'Only HTTPS is supported.')
 

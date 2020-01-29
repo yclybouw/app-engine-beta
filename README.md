@@ -143,3 +143,17 @@ Note that if you deploy a new version of your default service, staging will
 only updated after a fresh start. You can either wait for 10 minutes since last
 request to staging (see [app.yaml](app.yaml)) or manually do a stop and start
 of the staging service on the [versions page of the Google Cloud Console](https://console.cloud.google.com/appengine/versions).
+
+
+Handling Server-to-Server Requests
+==================================
+
+There is one big catch: the `staging` service behaves as a reverse proxy 
+between your browser and the `default` service, but has no impact of the 
+requests between the `default` service and an external party.
+
+Example in case of OAuth2: we need to exchange a code to an access token and 
+within that request we need to provide the redirect_uri. To solve this, our
+`staging` service will add a header `X-OAuth-Redirect` containing the original
+hostname (in this case staging-dot-myproject.appspot.com). The example app has
+been adjusted to take care of this behaviour.
