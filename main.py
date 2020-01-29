@@ -1,8 +1,25 @@
+import os
+
 import flask
 import requests
 
+import googleapiclient.discovery
+
+
+# Loaded at startup. Restart the service to reload
+def get_new_host():
+    apps_id = os.environ['GOOGLE_CLOUD_PROJECT']
+    service = googleapiclient.discovery.build('appengine', 'v1')
+    versions_api = service.apps().services().versions()
+    versions = versions_api.list(appsId=apps_id, servicesId='default').execute()
+    running_versions = [version for version in versions['versions']
+                        if version['servingStatus'] == 'SERVING']
+    version = max(running_versions, key=lambda v: v['createTime'])
+    return f"{version['id']}-dot-{apps_id}.appspot.com"
+
 
 app = flask.Flask(__name__)
+new_host = get_new_host()
 
 
 @app.route('/_ah/<path:path>')
@@ -17,7 +34,6 @@ def catch_all(path):
         flask.abort(400, 'Only HTTPS is supported.')
 
     old_host = flask.request.host
-    new_host = '20200122t233313-dot-clybouw.appspot.com'
 
     method = flask.request.method
     url = flask.request.url.replace(old_host, new_host).replace('%2F', '/')
