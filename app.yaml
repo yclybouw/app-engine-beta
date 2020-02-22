@@ -1,4 +1,4 @@
-service: staging
+service: beta
 runtime: python37
 instance_class: B1
 basic_scaling:

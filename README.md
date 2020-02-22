@@ -1,16 +1,16 @@
-Staging Environment for App Engine using Python
-===============================================
+Beta Environment for App Engine using Python
+============================================
 
 This is the repo used for [my blog](https://yannick.clybouw.eu/blog) and 
-features a staging environment on Google App Engine:
+features a beta environment on Google App Engine:
 
-  - We use a non-promoted service version for staging, so you can easily move a
-    version from staging to production by simply changing the traffic 
+  - We use a non-promoted service version for beta, so you can easily move a
+    version from beta to production by simply changing the traffic 
     allocation of the App Engine.
   - The application requires to be reachable on a fixed HTTPS URL (e.g. needed 
     for OAuth with fixed redirect_url + SSL).
     
-We will implement this staging environment by using a transparent reverse proxy
+We will implement this beta environment by using a transparent reverse proxy
 running as a separate service in the App Engine Standard Environment. We use
 the Python [Flask web framework](https://flask.palletsprojects.com) for this.
 
@@ -47,7 +47,7 @@ We need a OAuth2 Client ID and Client Secret for our application.
         Google Cloud project name):
         - http://127.0.0.1:5000/google/authorize
         - https://yourproject.appspot.com/google/authorize
-        - https://staging-dot-yourproject.appspot.com/google/authorize
+        - https://beta-dot-yourproject.appspot.com/google/authorize
 4.  The returned client ID should be stored in `settings.py`.
 5.  Create a new file `settings.py` and add the client secret:
     ```python
@@ -99,7 +99,7 @@ Deploying to the Google App Engine
     Profile".
 4.  Change something in `main.py`, example some strings within the HTML. Deploy 
     a new version without promoting it. We will use this version for our 
-    staging environment:
+    beta environment:
     ```bash
     gcloud app deploy
     ```
@@ -119,41 +119,41 @@ not be that flexible: some smaller providers have only a manual process in
 place where you have to send an e-mail to their sysadmin.
 
 In next section, we will describe how we will make this new version accessible
-at https://staging-dot-yourproject.appspot.com.
+at https://beta-dot-yourproject.appspot.com.
     
 
-Setting-Up the Staging Environment
-==================================
+Setting-Up the Beta Environment
+===============================
 
-In the root app-engine-staging directory, execute:
+In the root app-engine-beta directory, execute:
 ```bash
 gcloud app deploy --promote
 ```
 
 On the [services page of the Google Cloud Console](https://console.cloud.google.com/appengine/services)
-you will see a new service named `staging`. When clicking on it, you are 
-redirected to https://staging-dot-yourproject.appspot.com. The index page will 
+you will see a new service named `beta`. When clicking on it, you are 
+redirected to https://beta-dot-yourproject.appspot.com. The index page will 
 work (takes a few second due to the cold start), as well the OAuth flow! You
 should notice that the changes of step 4 of previous section are shown here,
 meaning you are using the not promoted version!
 
 To know how this work, you can have a peak at [main.py](main.py).
 
-Note that if you deploy a new version of your default service, staging will 
+Note that if you deploy a new version of your default service, beta will 
 only updated after a fresh start. You can either wait for 10 minutes since last
-request to staging (see [app.yaml](app.yaml)) or manually do a stop and start
-of the staging service on the [versions page of the Google Cloud Console](https://console.cloud.google.com/appengine/versions).
+request to beta (see [app.yaml](app.yaml)) or manually do a stop and start
+of the beta service on the [versions page of the Google Cloud Console](https://console.cloud.google.com/appengine/versions).
 
 
 Handling Server-to-Server Requests
 ==================================
 
-There is one big catch: the `staging` service behaves as a reverse proxy 
+There is one big catch: the `beta` service behaves as a reverse proxy 
 between your browser and the `default` service, but has no impact of the 
 requests between the `default` service and an external party.
 
 Example in case of OAuth2: we need to exchange a code to an access token and 
 within that request we need to provide the redirect_uri. To solve this, our
-`staging` service will add a header `X-OAuth-Redirect` containing the original
-hostname (in this case staging-dot-myproject.appspot.com). The example app has
+`beta` service will add a header `X-OAuth-Redirect` containing the original
+hostname (in this case beta-dot-myproject.appspot.com). The example app has
 been adjusted to take care of this behaviour.
