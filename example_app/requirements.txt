@@ -1,5 +1,5 @@
 Authlib==0.13
-Flask==1.1.1
+Flask==2.3.2
 requests==2.22.0
 # Does not work on MacOS: disable to install!
 google-python-cloud-debugger
